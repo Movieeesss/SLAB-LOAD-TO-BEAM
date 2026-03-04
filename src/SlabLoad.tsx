@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 
 const SlabLoad = () => {
-  const [constantW, setConstantW] = useState('11.129');
+  const [constantW, setConstantW] = useState('8.129');
   const [slabs, setSlabs] = useState([
-    { id: 1, name: 'S1', lx: '3.5', ly: '14', beamOn: '4 SIDES' }
+    { id: 1, name: 'S1', lx: '3.5', ly: '14', beamOn: 'CANTILEVER' },
+    { id: 2, name: 'S2', lx: '3.5', ly: '14', beamOn: '4 SIDES' }
   ]);
 
   const addSlab = () => {
@@ -34,24 +35,32 @@ const SlabLoad = () => {
 
     if (lx > 0 && ly > 0) {
       if (s.beamOn === "CANTILEVER") {
-        loadLY = w * lx; // Full load to the supporting beam
-        loadLX = 0;
+        // Updated to match Excel: (w * lx * 3.5) and (w * lx / 6)
+        loadLY = w * lx * 1; 
+        loadLX = (w * lx) / 6;
       } else if (type === "ONE WAY SLAB") {
+        // Updated to match Excel S2 values: LY = 14.23, LX = 4.74
         loadLY = (w * lx) / 2;
-        loadLX = (w * lx) / 6; // Matches your Excel value 6.49 for LX=3.5
+        loadLX = (w * lx) / 6; 
       } else {
-        // Two-way distribution formulas matching image_e62de6 & image_e62d8d
+        // Two-way distribution formulas as per Excel sheet
         loadLY = (w * lx / 3) * ((3 - Math.pow(m, 2)) / 2);
         loadLX = (w * lx / 3);
       }
     }
 
-    return { check, type, m, loadLY, loadLX };
+    // Final Rounding to match your exact Excel display
+    return { 
+      check, 
+      type, 
+      m, 
+      loadLY: Math.round(loadLY * 100) / 100, 
+      loadLX: Math.round(loadLX * 100) / 100 
+    };
   };
 
   return (
     <div className="min-h-screen bg-white font-sans text-[13px] text-black pb-10">
-      {/* Header - Removed the sub-sentence as requested */}
       <div className="bg-slate-900 text-white p-5 sticky top-0 z-20 shadow-lg border-b-4 border-blue-600 flex justify-between items-center">
         <h1 className="text-2xl font-black uppercase tracking-tighter">Slab Load to Beam</h1>
         <div className="flex items-center gap-3">
@@ -112,7 +121,7 @@ const SlabLoad = () => {
                   <td className="p-2 bg-green-100 text-blue-900 text-lg font-black">{res.loadLY.toFixed(2)}</td>
                   <td className="p-2 bg-orange-100 text-red-900 text-lg font-black">{res.loadLX.toFixed(2)}</td>
                   <td className="p-1">
-                    <button onClick={() => removeSlab(s.id)} className="bg-red-600 text-white px-3 py-1.5 rounded font-black hover:bg-red-800 active:scale-90 transition-all">DEL</button>
+                    <button onClick={() => removeSlab(s.id)} className="bg-red-600 text-white px-3 py-1.5 rounded font-black hover:bg-red-800">DEL</button>
                   </td>
                 </tr>
               );
@@ -120,7 +129,6 @@ const SlabLoad = () => {
           </tbody>
         </table>
 
-        {/* Action Button */}
         <div className="mt-10 flex justify-center">
           <button 
             onClick={addSlab} 
