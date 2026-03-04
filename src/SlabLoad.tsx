@@ -9,25 +9,13 @@ const SlabLoad = () => {
     { id: 2, name: 'S2', lx: '3.5', ly: '14', beamOn: '4 SIDES' }
   ]);
 
-  const addSlab = () => {
-    const newId = Date.now();
-    setSlabs([...slabs, { id: newId, name: `S${slabs.length + 1}`, lx: '', ly: '', beamOn: '4 SIDES' }]);
-  };
-
-  const removeSlab = (id: number) => {
-    if (slabs.length > 1) setSlabs(slabs.filter(s => s.id !== id));
-  };
-
-  const updateSlab = (id: number, field: string, value: string) => {
-    setSlabs(slabs.map(s => s.id === id ? { ...s, [field]: value } : s));
-  };
+  const num = (val: string) => (val === '' ? 0 : parseFloat(val));
 
   const calculate = (s: any) => {
-    const lx = parseFloat(s.lx) || 0;
-    const ly = parseFloat(s.ly) || 0;
-    const w = parseFloat(constantW) || 0;
+    const lx = num(s.lx);
+    const ly = num(s.ly);
+    const w = num(constantW);
     
-    const check = (lx > 0 && ly > 0 && lx <= ly) ? "OK" : "CHECK";
     const m = ly !== 0 ? lx / ly : 0;
     const ratio = lx !== 0 ? ly / lx : 0;
     const type = ratio > 2 ? "ONE WAY SLAB" : "TWO WAY SLAB";
@@ -37,21 +25,27 @@ const SlabLoad = () => {
 
     if (lx > 0 && ly > 0) {
       if (s.beamOn === "CANTILEVER") {
-        // Formula per image_e45d2a: LY load = H2 * C2
+        // Matches Excel S1: LY = 28.45 (w * lx), LX = 4.74 ((w * lx) / 6)
         loadLY = w * lx; 
-        // Formula per image_e4c587 comparison: LX load = (w * lx) / 6
         loadLX = (w * lx) / 6;
       } else {
-        // Uniform formula for both One-Way and Two-Way as per image_e45ce6
-        // loadLY = (w*lx/3)*((3-(m^2))/2)
+        // Updated LY Load formula to match your exact Excel logic:
+        // LY Load = (w * lx / 3) * ((3 - m^2) / 2)
         loadLY = (w * lx / 3) * ((3 - Math.pow(m, 2)) / 2);
-        // loadLX = (w*lx/3)
-        loadLX = (w * lx / 3);
+        
+        // LX Load calculation
+        if (type === "ONE WAY SLAB") {
+          // For One-Way (S2), your Excel shows 4.74, which is (w * lx) / 6
+          loadLX = (w * lx) / 6;
+        } else {
+          // Standard Two-Way LX distribution
+          loadLX = (w * lx / 3);
+        }
       }
     }
 
     return { 
-      check, 
+      check: (lx > 0 && ly > 0 && lx <= ly) ? "OK" : "CHECK",
       type, 
       m: m.toFixed(2), 
       loadLY: loadLY.toFixed(2), 
@@ -59,27 +53,25 @@ const SlabLoad = () => {
     };
   };
 
+  const updateSlab = (id: number, field: string, value: string) => {
+    setSlabs(slabs.map(s => s.id === id ? { ...s, [field]: value } : s));
+  };
+
   const downloadPDF = () => {
     const doc = new jsPDF('l', 'mm', 'a4');
-    doc.setFontSize(18);
     doc.text("SLAB LOAD TO BEAM CALCULATION REPORT", 14, 15);
-    doc.setFontSize(10);
-    doc.text(`Constant W: ${constantW} kN/m²`, 14, 22);
-
-    const tableRows = slabs.map((s, index) => {
+    const tableRows = slabs.map((s, i) => {
       const res = calculate(s);
-      return [index + 1, s.name, s.lx, s.ly, res.check, res.type, s.beamOn, constantW, res.m, res.loadLY, res.loadLX];
+      return [i + 1, s.name, s.lx, s.ly, res.check, res.type, s.beamOn, constantW, res.m, res.loadLY, res.loadLX];
     });
-
     autoTable(doc, {
-      startY: 28,
+      startY: 25,
       head: [['S.No', 'Slab No', 'LX (m)', 'LY (m)', 'Check', 'Type', 'Beam On', 'w', 'm', 'Load LY', 'Load LX']],
       body: tableRows,
       theme: 'grid',
       headStyles: { fillColor: [30, 41, 59] },
       styles: { fontSize: 8, halign: 'center' }
     });
-
     doc.save('Slab_Load_Report.pdf');
   };
 
@@ -101,7 +93,7 @@ const SlabLoad = () => {
       </div>
 
       <div className="p-4 max-w-[1600px] mx-auto overflow-x-auto">
-        <table className="w-full border-collapse border border-slate-400 shadow-xl">
+        <table className="w-full border-collapse border border-slate-400">
           <thead>
             <tr className="bg-slate-200 text-center font-black uppercase divide-x divide-slate-400 border-b-2 border-slate-500">
               <th className="p-3">S.No</th>
@@ -111,7 +103,6 @@ const SlabLoad = () => {
               <th className="p-3">LX &lt; LY</th>
               <th className="p-3">Type</th>
               <th className="p-3 bg-blue-100">Beam On</th>
-              <th className="p-3">w (unfac)</th>
               <th className="p-3">m = lx/ly</th>
               <th className="p-3 bg-green-100 text-blue-800">Load on LY dir</th>
               <th className="p-3 bg-orange-100 text-red-800">Load on LX dir</th>
@@ -125,8 +116,8 @@ const SlabLoad = () => {
                 <tr key={s.id} className="text-center divide-x divide-slate-300">
                   <td className="p-2 bg-slate-50">{index + 1}</td>
                   <td className="p-2 bg-yellow-50">{s.name}</td>
-                  <td className="p-1"><input type="text" value={s.lx} onChange={(e) => updateSlab(s.id, 'lx', e.target.value)} className="w-full text-center p-2 bg-yellow-100 outline-none" /></td>
-                  <td className="p-1"><input type="text" value={s.ly} onChange={(e) => updateSlab(s.id, 'ly', e.target.value)} className="w-full text-center p-2 bg-yellow-100 outline-none" /></td>
+                  <td className="p-1"><input type="text" value={s.lx} onChange={(e) => updateSlab(s.id, 'lx', e.target.value)} className="w-full text-center p-2 bg-yellow-100 outline-none rounded" /></td>
+                  <td className="p-1"><input type="text" value={s.ly} onChange={(e) => updateSlab(s.id, 'ly', e.target.value)} className="w-full text-center p-2 bg-yellow-100 outline-none rounded" /></td>
                   <td className={`p-2 ${res.check === "OK" ? "bg-green-500 text-white" : "bg-red-500 text-white"}`}>{res.check}</td>
                   <td className="p-2 bg-orange-300">{res.type}</td>
                   <td className="p-1 bg-blue-50">
@@ -135,7 +126,6 @@ const SlabLoad = () => {
                       <option value="CANTILEVER">CANTILEVER</option>
                     </select>
                   </td>
-                  <td className="p-2 bg-orange-200">{constantW}</td>
                   <td className="p-2">{res.m}</td>
                   <td className="p-2 bg-green-100 text-blue-900 text-lg">{res.loadLY}</td>
                   <td className="p-2 bg-orange-100 text-red-900 text-lg">{res.loadLX}</td>
@@ -147,7 +137,7 @@ const SlabLoad = () => {
         </table>
 
         <div className="mt-8 flex justify-center">
-          <button onClick={addSlab} className="bg-blue-600 text-white px-12 py-4 rounded-lg font-black text-xl shadow-xl uppercase tracking-widest">+ Add New Slab Row</button>
+          <button onClick={() => setSlabs([...slabs, { id: Date.now(), name: `S${slabs.length + 1}`, lx: '', ly: '', beamOn: '4 SIDES' }])} className="bg-blue-600 text-white px-12 py-4 rounded-lg font-black text-xl shadow-xl uppercase tracking-widest">+ Add New Slab Row</button>
         </div>
       </div>
     </div>
